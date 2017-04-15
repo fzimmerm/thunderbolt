@@ -1,0 +1,246 @@
+<!DOCTYPE HTML>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8"/>
+    <link href="css/main.css" type="text/css" rel="stylesheet">
+    <script src="js/math.js" type="text/javascript"></script>
+  </head>
+  <body>
+    <canvas id="canvas" width="800" height="400"></canvas>
+    <script>
+      'use strict';
+
+      function clamp(val, min, max) {
+        return Math.max(min, Math.min(val, max));
+      }
+
+      var AngleField = function(width, height, genfun) {
+        this.width  = width;
+        this.height = height;
+        this.field  = math.zeros(width, height);
+
+        this.generate(genfun);
+      }
+
+      AngleField.prototype.generate = function(genfun) {
+        for (var x = 0; x < this.width; ++x) {
+          for (var y = 0; y < this.height; ++y) {
+            this.field.set([x, y], genfun(x, y));
+          }
+        }
+      }
+
+      AngleField.prototype.at = function(x, y) {
+        return this.field.get([x,y]);
+      }
+
+      var normal = function() {
+        // Generates a pair of normally distributed numbers
+        // with mean mu and standard deviation sigma, 
+        // using the Box-Muller transform.
+        if (typeof normal.hasCachedResult == 'undefined') {
+          normal.hasCachedResult = false;
+        }
+
+        if (normal.hasCachedResult == true) {
+          normal.hasCachedResult = false;
+
+          return normal.cachedResult;
+        }
+        else {
+          let u = 1.0 - Math.random();
+          let v = 1.0 - Math.random();
+
+          let result          = Math.sqrt(-2.0 * Math.log(u)) * Math.cos(2.0 * Math.PI * v);
+          normal.cachedResult = Math.sqrt(-2.0 * Math.log(u)) * Math.sin(2.0 * Math.PI * v);
+
+          normal.hasCachedResult = true;
+
+          return result;
+        }
+      }
+
+      function logseries(p) {
+        // Sample from a discrete logarithmic distribution with probability p.
+        // Probability mass function, pk = p^k:
+        let pm = function(p, pk, k) {
+          return -pk / (k * Math.log(1.0 - p));
+        }
+
+        let u = Math.random();
+
+        let k   = 1;
+        let pk  = p;
+        let cdf = pm(p, pk, k);
+
+        while (cdf < u) {
+          k   += 1;
+          pk  *= p;
+          cdf += pm(p, pk, k);
+        }
+
+        return k;
+      }
+
+      var computeDepth = function(x) {
+        // hard-coded constant depth
+        return canvas.height;
+      }
+
+      function computeLength(stepsize) {
+        // length of segment: clamped normal distribution with mean=stepsize and 
+        // standard deviation proportional to stepsize
+        let sigma  = 0.25 * stepsize;
+        let length = stepsize + sigma * normal();
+
+        return clamp(length, 0.5 * stepsize, 1.5 * stepsize);
+      }
+
+      function computeNumSplits(origin, length, depthfn) {
+        let depth              = depthfn(origin.x);
+        let proportionalLength = length   / depth;
+        let progress           = origin.y / depth;
+
+        let p = progress * progress * proportionalLength;
+
+        // number of splits is sampled from logarithmic distribution
+        return logseries(p);
+      }
+
+      function hasSplit(segment, depthfn) {
+        let depth            = depthfn(segment.origin.x);
+        let normalizedLength = segment.length   / depth;
+        let progress         = segment.origin.y / depth;
+
+        let p = Math.min(Math.sqrt(progress) * normalizedLength, 0.1);
+
+        return p > Math.random();
+      }
+
+      function computeAngle(segment, depthfn) {
+        let depth    = depthfn(segment.origin.x);
+        let progress = segment.origin.y / depth;
+        let angle    = clamp(0.5 * progress, 0.1, 0.5) * Math.PI * normal();
+
+        return clamp(0.5 * (segment.angle + angle), -0.5 * Math.PI, 0.5 * Math.PI);
+      }
+
+      var Thunder = function(width, depthfn, intensity, stepsize) {
+        this.stepsize = stepsize;
+        this.segmentsProcessed = [];
+        this.segmentsPending = [{
+          origin: {
+            x: 0.5 * width,
+            y: 0.0
+          },
+          angle: 0.0,
+          intensity: intensity
+        }];
+
+        this.processSegments(depthfn);
+      }
+
+      Thunder.prototype.processSegments = function(depthfn) {
+        let totalsplits = 0;
+        while (this.segmentsPending.length > 0) {
+          let segment = this.segmentsPending.pop();
+
+          segment.length = computeLength(this.stepsize);
+          segment.angle  = computeAngle(segment, depthfn);
+          segment.end    = {
+            x: segment.origin.x + segment.length * Math.sin(segment.angle),
+            y: segment.origin.y + segment.length * Math.cos(segment.angle)
+          };
+
+          this.segmentsProcessed.push(segment);
+
+          if (segment.end.y < depthfn(segment.end.x)) {
+            let intensity1 = segment.intensity;
+            let intensity2 = 0.0;
+
+            let split = hasSplit(segment, depthfn);
+
+            if (split === true) {
+              totalsplits += 1;
+              let u = Math.random();
+
+              intensity1 *= u;
+              intensity2 = segment.intensity - intensity1;
+
+              this.segmentsPending.push({
+                origin: {
+                  x: segment.end.x,
+                  y: segment.end.y
+                },
+                angle: segment.angle,
+                intensity: intensity2
+              });
+            }
+
+            this.segmentsPending.push({
+              origin: {
+                x: segment.end.x,
+                y: segment.end.y
+              },
+              angle: segment.angle,
+              intensity: intensity1
+            });
+          }
+        }
+      }
+
+      Thunder.prototype.drawSegments = function(context) {
+        for (let i = 0; i < this.segmentsProcessed.length; ++i) {
+          context.lineWidth = Math.max(2.0 * this.segmentsProcessed[i].intensity, 1.0);
+          context.beginPath();
+          context.moveTo(this.segmentsProcessed[i].origin.x, this.segmentsProcessed[i].origin.y);
+          context.lineTo(this.segmentsProcessed[i].end.x, this.segmentsProcessed[i].end.y);
+          context.stroke();
+        }
+      }
+
+      var clear = function(canvas, color) {
+        let context = canvas.getContext('2d');
+
+        context.beginPath();
+        context.fillStyle = color;
+        context.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      var doStuff = function() {
+        let canvas = document.getElementById('canvas');
+
+        clear(canvas, "#FFFFFF");
+
+        let thunder = new Thunder(
+          canvas.width,
+          computeDepth,
+          1.0,
+          4.0
+        );
+
+        thunder.drawSegments(canvas.getContext('2d'));
+
+        window.setTimeout(doStuff, 1000);
+      }
+
+      window.setTimeout(doStuff, 1000);
+
+      // let angleField = new AngleField(
+      //   Math.floor(0.1 * canvas.width), 
+      //   Math.floor(0.1 * canvas.height), 
+      //   function genfun(x, y) { return normal(0.0, 0.25 * Math.PI); }
+      // );
+
+      // // test normal dist.
+      // for (var i = 0; i < 100; ++i) {
+      //   console.log("N(0,1) = " + normal());
+      // }
+
+      // // test logarithmic dist.
+      // for (var i = 0; i < 100; ++i) {
+      //   console.log("L(p) = ", logseries(0.33));
+      // }
+    </script>
+  </body>
+</html>
