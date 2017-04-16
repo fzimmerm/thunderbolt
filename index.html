@@ -112,7 +112,7 @@
         let normalizedLength = segment.length   / depth;
         let progress         = segment.origin.y / depth;
 
-        let p = Math.min(Math.sqrt(progress) * normalizedLength, 0.1);
+        let p = progress * normalizedLength * segment.intensity;
 
         return p > Math.random();
       }
@@ -191,7 +191,7 @@
 
       Thunder.prototype.drawSegments = function(context) {
         for (let i = 0; i < this.segmentsProcessed.length; ++i) {
-          context.lineWidth = Math.max(2.0 * this.segmentsProcessed[i].intensity, 1.0);
+          context.lineWidth = Math.max(0.25 * this.segmentsProcessed[i].intensity, 0.5);
           context.beginPath();
           context.moveTo(this.segmentsProcessed[i].origin.x, this.segmentsProcessed[i].origin.y);
           context.lineTo(this.segmentsProcessed[i].end.x, this.segmentsProcessed[i].end.y);
@@ -215,8 +215,8 @@
         let thunder = new Thunder(
           canvas.width,
           computeDepth,
-          1.0,
-          4.0
+          10.0,
+          8.0
         );
 
         thunder.drawSegments(canvas.getContext('2d'));
