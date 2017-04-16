@@ -207,6 +207,7 @@
         context.fillRect(0, 0, canvas.width, canvas.height);
       }
 
+      const eps = 0.1;
       const millisecondsPerFrame = 1000.0 / 24.0;
 
       var doStuff = function(canvas) {
@@ -218,13 +219,16 @@
           };
         }
         else {
-          doStuff.momentum += (0.5 - Math.random());
+          let dp = 1.0 - Math.random() - (doStuff.origin.x - 0.5 * canvas.width);
+
+          doStuff.momentum += dp;
+
           if (   (doStuff.origin.x <= 0            && doStuff.momentum < 0) 
               || (doStuff.origin.x >= canvas.width && doStuff.momentum > 0) ) {
             doStuff.momentum = -doStuff.momentum;
           }
 
-          doStuff.origin.x += doStuff.momentum;
+          doStuff.origin.x += clamp(doStuff.momentum, -2.0, 2.0);
         }
 
         clear(canvas, "#FFFFFF");
