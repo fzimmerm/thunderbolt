@@ -207,18 +207,30 @@
         context.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      var doStuff = function() {
-        let canvas = document.getElementById('canvas');
+      const millisecondsPerFrame = 1000.0 / 24.0;
+
+      var doStuff = function(canvas) {
+        if (typeof doStuff.origin == 'undefined') {
+          doStuff.momentum = 0.0;
+          doStuff.origin = {
+            x: Math.random() * canvas.width,
+            y: 0
+          };
+        }
+        else {
+          doStuff.momentum += (0.5 - Math.random());
+          if (   (doStuff.origin.x <= 0            && doStuff.momentum < 0) 
+              || (doStuff.origin.x >= canvas.width && doStuff.momentum > 0) ) {
+            doStuff.momentum = -doStuff.momentum;
+          }
+
+          doStuff.origin.x += doStuff.momentum;
+        }
 
         clear(canvas, "#FFFFFF");
 
-        let origin = {
-          x: Math.random() * canvas.width,
-          y: 0
-        };
-
         let thunder = new Thunder(
-          origin,
+          doStuff.origin,
           computeDepth,
           10.0,
           8.0
@@ -226,10 +238,10 @@
 
         thunder.drawSegments(canvas.getContext('2d'));
 
-        window.setTimeout(doStuff, 1000);
+        window.setTimeout(doStuff, millisecondsPerFrame, canvas);
       }
 
-      window.setTimeout(doStuff, 1000);
+      window.setTimeout(doStuff, millisecondsPerFrame, document.getElementById('canvas'));
 
       // let angleField = new AngleField(
       //   Math.floor(0.1 * canvas.width), 
