@@ -112,7 +112,7 @@
         let normalizedLength = segment.length   / depth;
         let progress         = segment.origin.y / depth;
 
-        let p = progress * normalizedLength * segment.intensity;
+        let p = progress * normalizedLength * segment.intensity;  
 
         return p > Math.random();
       }
@@ -125,13 +125,13 @@
         return clamp(0.5 * (segment.angle + angle), -0.5 * Math.PI, 0.5 * Math.PI);
       }
 
-      var Thunder = function(width, depthfn, intensity, stepsize) {
+      var Thunder = function(origin, depthfn, intensity, stepsize) {
         this.stepsize = stepsize;
         this.segmentsProcessed = [];
         this.segmentsPending = [{
           origin: {
-            x: 0.5 * width,
-            y: 0.0
+            x: origin.x,
+            y: origin.y
           },
           angle: 0.0,
           intensity: intensity
@@ -212,8 +212,13 @@
 
         clear(canvas, "#FFFFFF");
 
+        let origin = {
+          x: Math.random() * canvas.width,
+          y: 0
+        };
+
         let thunder = new Thunder(
-          canvas.width,
+          origin,
           computeDepth,
           10.0,
           8.0
